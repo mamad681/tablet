@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablet Link</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{--bg:#0f1420;--card:#171e2e;--line:#27304a;--text:#e8ecf5;--mut:#8a94ad;--acc:#4f8cff;--ok:#2fbf71;--bad:#ef5b5b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:Vazirmatn,Tahoma,system-ui,sans-serif;font-size:15px}
+  button{font-family:inherit;font-size:14px;cursor:pointer;border:1px solid var(--line);background:#1d2640;color:var(--text);padding:8px 14px;border-radius:8px}
+  button:hover{background:#24305a}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+  button.danger{background:transparent;border-color:var(--bad);color:var(--bad)}
+  input{font-family:inherit;font-size:15px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:#0f1524;color:var(--text);width:100%}
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--card)}
+  header h1{font-size:17px;margin:0}
+  .wrap{max-width:1250px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:14px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .mut{color:var(--mut);font-size:13px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-left:6px}
+  .dot.on{background:var(--ok)}
+  h3{margin:0 0 10px;font-size:15px}
+  #login{max-width:360px;margin:12vh auto;display:flex;flex-direction:column;gap:10px}
+  #qrbox{text-align:center}
+  #qrbox img{width:100%;max-width:300px;background:#fff;padding:8px;border-radius:10px}
+  #qrlink{direction:ltr;font-size:12px;word-break:break-all;color:var(--mut);margin-top:6px}
+  .dev{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer}
+  .dev.sel{border-color:var(--acc);background:#1b2748}
+  #screenWrap{position:relative;background:#000;border-radius:10px;min-height:260px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  #screen{max-width:100%;max-height:68vh;display:none;user-select:none;-webkit-user-drag:none;cursor:crosshair;touch-action:none}
+  #screenHint{color:var(--mut);padding:20px;text-align:center;line-height:1.9}
+  #map{height:300px;border-radius:10px;margin-top:10px}
+  .hide{display:none!important}
+  #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222c47;border:1px solid var(--line);padding:9px 16px;border-radius:8px;opacity:0;transition:.25s;pointer-events:none}
+  #toast.show{opacity:1}
+  .stack{display:flex;flex-direction:column;gap:14px}
+</style>
+</head>
+<body>
+
+<div id="login" class="card hide">
+  <h3>ورود به پنل</h3>
+  <input id="pw" type="password" placeholder="رمز ادمین (ADMIN_PASSWORD)" autocomplete="current-password">
+  <button class="primary" id="loginBtn">ورود</button>
+  <div class="mut" id="loginErr"></div>
+</div>
+
+<div id="app" class="hide">
+  <header>
+    <h1>📡 Tablet Link</h1>
+    <button id="logoutBtn">خروج</button>
+  </header>
+  <div class="wrap">
+    <div class="grid">
+      <div class="stack">
+        <div class="card">
+          <h3>جفت‌سازی تبلت جدید</h3>
+          <div class="row" style="margin-bottom:10px">
+            <input id="newName" placeholder="نام تبلت (اختیاری)" style="flex:1">
+            <button class="primary" id="pairBtn">ساخت QR</button>
+          </div>
+          <div id="qrbox" class="hide">
+            <img id="qrimg" alt="QR">
+            <div id="qrlink"></div>
+            <div class="mut" style="margin-top:8px">با دوربین تبلت اسکن کن و لینک را در Chrome باز کن.</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>دستگاه‌ها</h3>
+          <div id="devList"><div class="mut">هنوز دستگاهی نیست. یک QR بساز.</div></div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <div class="row" style="justify-content:space-between;margin-bottom:10px">
+            <div><span class="dot" id="onDot"></span><b id="curName">—</b> <span class="mut" id="curInfo"></span></div>
+            <div class="row">
+              <button id="startBtn" class="primary">▶ نمایش صفحه</button>
+              <button id="stopBtn">■ توقف</button>
+            </div>
+          </div>
+          <div id="screenWrap">
+            <img id="screen" alt="">
+            <div id="screenHint">دستگاه را از لیست انتخاب کن.<br>برای دیدن/کنترل صفحه، اپ اندروید باید روی تبلت وصل باشد.</div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button data-key="back">◀ Back</button>
+            <button data-key="home">● Home</button>
+            <button data-key="recents">▣ Recents</button>
+            <button data-key="notifications">🔔 Notifications</button>
+            <span class="mut">کلیک = تپ ، کشیدن = سوایپ</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="justify-content:space-between">
+            <h3 style="margin:0">لوکیشن</h3>
+            <div class="row">
+              <button id="locateBtn">📍 درخواست لوکیشن الان</button>
+              <button id="openMaps">باز کردن در Google Maps</button>
+            </div>
+          </div>
+          <div class="mut" id="locInfo" style="margin-top:8px">هنوز لوکیشنی دریافت نشده.</div>
+          <div id="map"></div>
+        </div>
+
+        <div class="card">
+          <h3>فرمان‌ها</h3>
+          <div class="row">
+            <input id="msgText" placeholder="پیامی که روی تبلت نشان داده شود" style="flex:1;min-width:200px">
+            <button id="sendMsg">ارسال پیام</button>
+            <button id="beepBtn">🔊 بوق / پیدا کردن</button>
+          </div>
+          <div class="mut" id="statusLine" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+  const toast = (t)=>{const el=$('toast');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2200)};
+  const api = async (url, opts)=>{
+    const r = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts));
+    let j = {}; try{ j = await r.json(); }catch(e){}
+    if(!r.ok) throw Object.assign(new Error(j.error||r.status), {status:r.status, data:j});
+    return j;
+  };
+
+  let current = null;      // token
+  let ws = null;
+  let map, marker, circle;
+  let lastLoc = null;
+  let lastBlobUrl = null;
+
+  /* ---------- auth ---------- */
+  async function boot(){
+    const me = await api('/api/me').catch(()=>({admin:false}));
+    if(me.admin){ $('login').classList.add('hide'); $('app').classList.remove('hide'); initMap(); refreshList(); setInterval(refreshList, 5000); }
+    else { $('app').classList.add('hide'); $('login').classList.remove('hide'); }
+  }
+  $('loginBtn').onclick = async ()=>{
+    $('loginErr').textContent='';
+    try{ await api('/api/login',{method:'POST',body:JSON.stringify({password:$('pw').value})}); location.reload(); }
+    catch(e){ $('loginErr').textContent = e.status===429 ? 'تلاش بیش از حد. بعداً دوباره امتحان کن.' : 'رمز اشتباه است.'; }
+  };
+  $('pw').addEventListener('keydown',e=>{ if(e.key==='Enter') $('loginBtn').click(); });
+  $('logoutBtn').onclick = async ()=>{ await api('/api/logout',{method:'POST'}); location.reload(); };
+
+  /* ---------- pairing ---------- */
+  $('pairBtn').onclick = async ()=>{
+    try{
+      const j = await api('/api/pair',{method:'POST',body:JSON.stringify({name:$('newName').value})});
+      $('qrimg').src = j.qr; $('qrlink').textContent = j.url; $('qrbox').classList.remove('hide');
+      await refreshList(); select(j.token);
+    }catch(e){ toast('خطا در ساخت QR'); }
+  };
+
+  /* ---------- device list ---------- */
+  let devices = [];
+  async function refreshList(){
+    try{ devices = await api('/api/pairings'); }catch(e){ if(e.status===401) location.reload(); return; }
+    const box = $('devList');
+    if(!devices.length){ box.innerHTML='<div class="mut">هنوز دستگاهی نیست. یک QR بساز.</div>'; return; }
+    box.innerHTML='';
+    devices.forEach(d=>{
+      const el = document.createElement('div');
+      el.className='dev'+(d.token===current?' sel':'');
+      const left = document.createElement('div');
+      const dot = document.createElement('span'); dot.className='dot'+(d.online?' on':'');
+      const nm = document.createElement('span'); nm.textContent = d.name + (d.info&&d.info.model?(' — '+d.info.model):'');
+      left.append(dot,nm);
+      const right = document.createElement('span'); right.className='mut';
+      right.textContent = d.online ? (d.info&&d.info.src==='app'?'اپ':'وب') : 'آفلاین';
+      el.append(left,right);
+      el.onclick=()=>select(d.token);
+      box.appendChild(el);
+    });
+  }
+
+  function select(token){
+    if(current===token) return;
+    current = token;
+    if(ws){ try{ws.close()}catch(e){} ws=null; }
+    resetView();
+    const d = devices.find(x=>x.token===token);
+    $('curName').textContent = d? d.name : 'Tablet';
+    connectAdmin();
+    refreshList();
+  }
+
+  function resetView(){
+    $('screen').style.display='none'; $('screenHint').style.display='block';
+    $('screenHint').innerHTML='برای دیدن صفحه روی «▶ نمایش صفحه» بزن.<br>(اپ اندروید باید روی تبلت وصل باشد.)';
+    $('locInfo').textContent='هنوز لوکیشنی دریافت نشده.'; lastLoc=null;
+    if(marker){ map.removeLayer(marker); marker=null; } if(circle){ map.removeLayer(circle); circle=null; }
+    $('onDot').classList.remove('on'); $('curInfo').textContent=''; $('statusLine').textContent='';
+  }
+
+  /* ---------- websocket ---------- */
+  function connectAdmin(){
+    const proto = location.protocol==='https:'?'wss':'ws';
+    const my = new WebSocket(`${proto}://${location.host}/ws?role=admin&token=${encodeURIComponent(current)}`);
+    my.binaryType='blob';
+    ws = my;
+    my.onmessage = (ev)=>{
+      if(typeof ev.data !== 'string'){ showFrame(ev.data); return; }
+      let m; try{ m=JSON.parse(ev.data);}catch(e){return}
+      if(m.type==='presence'){
+        $('onDot').classList.toggle('on', !!m.online);
+        if(m.name) $('curName').textContent=m.name;
+        if(m.info) setInfo(m.info);
+        if(!m.online) $('statusLine').textContent='دستگاه آفلاین است.';
+        else $('statusLine').textContent='';
+      }else if(m.type==='info'){ setInfo(m.info);
+      }else if(m.type==='location'){ setLocation(m);
+      }else if(m.type==='status'){ $('statusLine').textContent=m.text; }
+    };
+    my.onclose = ()=>{ if(ws===my){ $('onDot').classList.remove('on'); setTimeout(()=>{ if(ws===my && current) connectAdmin(); }, 2500);} };
+  }
+  const send = (o)=>{ if(ws && ws.readyState===1){ ws.send(JSON.stringify(o)); return true;} toast('اتصال برقرار نیست'); return false; };
+
+  function setInfo(i){
+    const parts=[]; if(i.model) parts.push(i.model); if(i.battery!=null) parts.push('باتری '+i.battery+'%');
+    if(i.src) parts.push(i.src==='app'?'اتصال از طریق اپ':'اتصال از طریق صفحه‌ی وب');
+    $('curInfo').textContent = parts.length? '('+parts.join(' • ')+')' : '';
+  }
+
+  /* ---------- screen ---------- */
+  function showFrame(blob){
+    const img=$('screen');
+    const url=URL.createObjectURL(blob);
+    img.onload=()=>{ if(lastBlobUrl) URL.revokeObjectURL(lastBlobUrl); lastBlobUrl=url; };
+    img.src=url; img.style.display='block'; $('screenHint').style.display='none';
+  }
+  $('startBtn').onclick=()=>{ if(send({type:'startScreen'})) $('screenHint').innerHTML='در انتظار تصویر…<br>روی تبلت باید اپ باز و دسترسی ضبط صفحه داده شده باشد.'; };
+  $('stopBtn').onclick=()=>{ send({type:'stopScreen'}); $('screen').style.display='none'; $('screenHint').style.display='block'; $('screenHint').textContent='نمایش متوقف شد.'; };
+
+  // tap + swipe on the image (mouse and touch via pointer events)
+  (function(){
+    const img=$('screen'); let down=null;
+    const norm=(e)=>{ const r=img.getBoundingClientRect(); return { x:Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)), y:Math.min(1,Math.max(0,(e.clientY-r.top)/r.height)) }; };
+    img.addEventListener('pointerdown',e=>{ e.preventDefault(); img.setPointerCapture(e.pointerId); down={...norm(e),t:Date.now()}; });
+    img.addEventListener('pointerup',e=>{
+      if(!down) return; const up=norm(e); const dx=up.x-down.x, dy=up.y-down.y; const dist=Math.hypot(dx,dy); const dur=Date.now()-down.t;
+      if(dist<0.02) send({type:'tap',x:down.x,y:down.y,long:dur>600});
+      else send({type:'swipe',x1:down.x,y1:down.y,x2:up.x,y2:up.y,ms:Math.max(120,Math.min(900,dur))});
+      down=null;
+    });
+    img.addEventListener('pointercancel',()=>{down=null});
+    img.addEventListener('dragstart',e=>e.preventDefault());
+  })();
+  document.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>send({type:'key',key:b.dataset.key}));
+
+  /* ---------- location ---------- */
+  function initMap(){
+    map = L.map('map').setView([35.7, 51.4], 5);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  }
+  function setLocation(m){
+    lastLoc=m; const ll=[m.lat,m.lng];
+    if(!marker){ marker=L.marker(ll).addTo(map); } else marker.setLatLng(ll);
+    if(circle){ map.removeLayer(circle); circle=null; }
+    if(m.acc){ circle=L.circle(ll,{radius:m.acc,weight:1}).addTo(map); }
+    map.setView(ll, Math.max(map.getZoom(), 16));
+    const t=new Date(m.ts).toLocaleTimeString('fa-IR');
+    $('locInfo').textContent=`عرض ${m.lat.toFixed(6)} ، طول ${m.lng.toFixed(6)} ، دقت ≈ ${m.acc?Math.round(m.acc)+' متر':'؟'} ، ساعت ${t} (${m.src==='app'?'اپ':'وب'})`;
+  }
+  $('locateBtn').onclick=()=>{ if(send({type:'locate'})) toast('درخواست ارسال شد'); };
+  $('openMaps').onclick=()=>{ if(!lastLoc) return toast('هنوز لوکیشنی نیست'); window.open(`https://www.google.com/maps?q=${lastLoc.lat},${lastLoc.lng}`,'_blank','noopener'); };
+
+  /* ---------- commands ---------- */
+  $('sendMsg').onclick=()=>{ const t=$('msgText').value.trim(); if(!t) return; if(send({type:'notify',text:t})){ $('msgText').value=''; toast('ارسال شد'); } };
+  $('beepBtn').onclick=()=>{ if(send({type:'beep'})) toast('بوق فرستاده شد'); };
+
+  boot();
+})();
+</script>
+</body>
+</html>
